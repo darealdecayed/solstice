@@ -1,0 +1,2 @@
+# How to use the API:
+**curl -X POST http://localhost:3000/check -H "Content-Type: application/json" -d '{"url": "https://vapor.my", "headers": {"via": "1.1 proxy-server", "x-forwarded-for": "10.0.0.50, 192.168.1.100", "x-real-ip": "10.0.0.50", "proxy-connection": "close", "forwarded": "for=10.0.0.50;host=petezahgames.com;proto=https"}, "ja3Fingerprint": "suspicious-hash-abcde", "tlsVersion": "SSLv3", "cipherSuite": "DES-CBC3-SHA", "clientIP": "10.0.0.50", "requestTimestamp": 1640995200000, "responseTimestamp": 1640995200800}'**
