@@ -1,0 +1,55 @@
+#!/usr/bin/env node
+
+const { spawn } = require('child_process');
+const crypto = require('crypto');
+
+function generate10DigitId() {
+  const bytes = crypto.randomBytes(4);
+  const num = bytes.readUInt32BE(0) % 10000000000;
+  return num.toString().padStart(10, '0');
+}
+
+const email = process.argv[2];
+if (!email) {
+  console.error('Usage: ./scripts/key-gen <student-email>');
+  process.exit(1);
+}
+
+const domain = email.split('@')[1];
+if (!domain) {
+  console.error('Invalid email format');
+  process.exit(1);
+}
+
+const apiKey = generate10DigitId();
+const license = generate10DigitId();
+
+console.log(`Generated API key for ${email}: ${apiKey}`);
+console.log(`Generated license for domain ${domain}: ${license}`);
+
+console.log(`\nCredentials for ${email}:`);
+console.log(`API Key: ${apiKey}`);
+console.log(`License: ${license}`);
+console.log(`\nUsage:`);
+console.log(`curl -H "x-api-key: ${apiKey}" -H "x-student-email: ${email}" -H "x-license: ${license}" http://localhost:3000/api/endpoint`);
+
+const psql = spawn('sudo', ['-u', 'postgres', 'psql', '-d', 'solstice', '-c', `
+  INSERT INTO api_keys (key_value, expires_at) VALUES ('${apiKey}', '2025-12-31 23:59:59') ON CONFLICT (key_value) DO NOTHING;
+  INSERT INTO licenses (license_value, student_email, expires_at) VALUES ('${license}', '${email}', '2025-12-31 23:59:59') ON CONFLICT (student_email) DO NOTHING;
+`]);
+
+psql.stdout.on('data', (data) => {
+  console.log('Database updated:', data.toString());
+});
+
+psql.stderr.on('data', (data) => {
+  console.error('Database error:', data.toString());
+});
+
+psql.on('close', (code) => {
+  if (code === 0) {
+    console.log('Keys successfully stored in database');
+  } else {
+    console.log('Database update failed');
+  }
+});

@@ -1,0 +1,1 @@
+-- Empty seed file - use key-gen.ts to generate credentials

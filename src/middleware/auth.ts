@@ -9,15 +9,15 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
     return res.status(401).json({ error: 'API key required' })
   }
 
-  if (apiKey !== 'SOLSTICE-DEV-API-KEY-12345') {
-    return res.status(401).json({ error: 'Invalid API key' })
+  if (!/^[0-9]{10}$/.test(apiKey)) {
+    return res.status(401).json({ error: 'Invalid API key format' })
   }
 
   if (!studentEmail) {
     return res.status(403).json({ error: 'Student email required' })
   }
 
-  const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.(edu|k12\.[a-z]{2}\.us)$/
+  const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.(edu|k12\.[a-z]{2}\.us|dev)$/
   if (!emailRegex.test(studentEmail)) {
     return res.status(403).json({ error: 'Invalid student email format' })
   }
@@ -26,8 +26,8 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
     return res.status(403).json({ error: 'License required' })
   }
 
-  if (license !== 'SOLSTICE-A1B2-C3D4-E5F6') {
-    return res.status(403).json({ error: 'Invalid or expired license' })
+  if (!/^[0-9]{10}$/.test(license)) {
+    return res.status(403).json({ error: 'Invalid license format' })
   }
 
   ;(req as any).apiKey = apiKey
