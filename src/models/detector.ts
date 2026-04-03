@@ -133,48 +133,38 @@ export class ProxyDetector {
       const response = await this.makeHTTPSRequest(domain)
       const body = response.body.toLowerCase()
       const title = body.match(/<title[^>]*>([^<]+)<\/title>/i)?.[1]?.toLowerCase() || ''
+      const metaDescription = body.match(/<meta[^>]*name=["\']description["\'][^>]*content=["\']([^"\']+)["\']/i)?.[1]?.toLowerCase() || ''
+      const metaKeywords = body.match(/<meta[^>]*name=["\']keywords["\'][^>]*content=["\']([^"\']+)["\']/i)?.[1]?.toLowerCase() || ''
       
-      const gameIndicators = [
-        'unblocked games',
-        'school games',
-        'games for school',
-        'play games',
-        'online games',
-        'flash games',
-        'html5 games',
-        'arcade games',
-        'multiplayer games',
-        'browser games',
-        'free games',
-        'game portal',
-        'gaming site',
-        'educational games',
-        'math games',
-        'learning games',
-        'fun games',
-        'kids games',
-        'student games',
-        'classroom games'
+      const allText = title + ' ' + metaDescription + ' ' + metaKeywords + ' ' + body
+      
+      const gamePatterns = [
+        /\b(game|games|gaming|play|player|arcade|puzzle|action|adventure|strategy|rpg|mmo|fps|multiplayer)\b/gi,
+        /\b(singleplayer|campaign|level|score|highscore|achievement|leaderboard|tournament|competition|match|round|stage)\b/gi,
+        /\b(unblocked|blocked|bypass|proxy|tunnel|school|work|fun|entertainment|recreation|pastime|diversion)\b/gi,
+        /\b(flash|html5|canvas|webgl|unity|construct|phaser|three\.js|babylonjs|playcanvas)\b/gi
       ]
       
-      const gameKeywords = [
-        'game', 'games', 'play', 'player', 'gaming', 'arcade', 'puzzle',
-        'action', 'adventure', 'strategy', 'rpg', 'mmo', 'fps', 'multiplayer',
-        'singleplayer', 'campaign', 'level', 'score', 'highscore', 'achievement',
-        'leaderboard', 'tournament', 'competition', 'match', 'round', 'stage'
-      ]
+      let patternMatches = 0
+      gamePatterns.forEach(pattern => {
+        const matches = allText.match(pattern)
+        if (matches) {
+          patternMatches += matches.length
+        }
+      })
       
-      const gamePlatforms = [
-        'unity', 'webgl', 'flash', 'html5', 'canvas', 'webassembly', 'wasm',
-        'construct', 'godot', 'phaser', 'three.js', 'babylonjs', 'playcanvas'
-      ]
+      const interactiveElements = (body.match(/<iframe|<embed|<object|<canvas|<game|<play/gi) || []).length
+      const scriptCount = (body.match(/<script/gi) || []).length
+      const linkCount = (body.match(/<a\s+href/gi) || []).length
       
-      const titleScore = gameIndicators.filter(indicator => title.includes(indicator)).length * 0.3
-      const contentScore = gameIndicators.filter(indicator => body.includes(indicator)).length * 0.2
-      const keywordScore = gameKeywords.filter(keyword => body.includes(keyword)).length * 0.05
-      const platformScore = gamePlatforms.filter(platform => body.includes(platform)).length * 0.15
+      const interactivityScore = Math.min(interactiveElements * 0.2, 0.5)
+      const patternScore = Math.min(patternMatches * 0.1, 0.8)
+      const scriptDensity = scriptCount > 10 ? 0.2 : 0
+      const linkDensity = linkCount > 50 ? 0.1 : 0
       
-      const totalScore = titleScore + contentScore + keywordScore + platformScore
+      const totalScore = interactivityScore + patternScore + scriptDensity + linkDensity
+      
+      console.log(`Content analysis for ${domain}: patterns=${patternMatches}, interactive=${interactiveElements}, scripts=${scriptCount}, links=${linkCount}, score=${totalScore}`)
       
       return totalScore > 0.4
     } catch (error) {
