@@ -1,7 +1,8 @@
 import * as tls from 'tls'
 import * as crypto from 'crypto'
-import * as https from 'https'
-import * as http from 'http'
+import https from 'https'
+import http from 'http'
+import { CategoryResult, Category, Categorizer } from './categorizer'
 import WebSocket from 'ws'
 import { LatencyStats, ProxyDetectionResult } from './types'
 
@@ -262,100 +263,73 @@ export class ProxyDetector {
   }
 
   async analyzeDomain(domain: string): Promise<ProxyDetectionResult> {
-    const numRequests = 5
-    const tlsFingerprints: string[] = []
-    const handshakeTimes: number[] = []
-    const latencies: number[] = []
-    const responseHashes: string[] = []
-    const headerEntropies: number[] = []
-    
-    for (let i = 0; i < numRequests; i++) {
-      try {
-        const fingerprint = await this.getTLSFingerprint(domain)
-        tlsFingerprints.push(fingerprint)
-        
-        const handshakeTime = await this.measureHandshakeTime(domain)
-        handshakeTimes.push(handshakeTime)
-        
-        const response = await this.makeHTTPSRequest(domain)
-        latencies.push(response.latency)
-        
-        const responseHash = crypto.createHash('sha256').update(response.body).digest('hex')
-        responseHashes.push(responseHash)
-        
-        const entropy = this.calculateHeaderEntropy(response.headers)
-        headerEntropies.push(entropy)
-      } catch (error) {
-        continue
+    try {
+      const response = await this.makeHTTPSRequest(domain)
+      
+      const tlsFingerprint = await this.getTLSFingerprint(domain)
+      const handshakeTime = await this.measureHandshakeTime(domain)
+      const headerEntropy = this.calculateHeaderEntropy(response.headers)
+      const headerVariance = this.calculateVariance([headerEntropy])
+      const wispCheck = await this.checkWispServers(domain)
+      const bareMuxCheck = await this.checkBareMux(domain)
+      const domainScore = this.analyzeDomainName(domain)
+      const websocketUpgrade = await this.testWebSocketUpgrade(domain)
+      const gameContent = await this.checkGameSiteContent(domain)
+      
+      const categoryResult = await Categorizer.categorizeDomain(domain, response.body)
+      
+      const anomalyScore = (
+        (tlsFingerprint.length > 100 ? 0.2 : 0) +
+        (handshakeTime > 200 ? 0.15 : 0) +
+        (headerEntropy > 4.5 ? 0.15 : 0) +
+        (headerVariance > 2.0 ? 0.1 : 0) +
+        (wispCheck ? 0.25 : 0) +
+        (bareMuxCheck ? 0.3 : 0) +
+        (domainScore * 0.2) +
+        (websocketUpgrade ? 0.2 : 0) +
+        (gameContent ? 0.4 : 0)
+      )
+      
+      const proxyLikely = anomalyScore > 0.4
+      
+      return {
+        domain,
+        tlsFingerprint,
+        handshakeTime,
+        headerEntropy,
+        headerVariance,
+        wispCheck,
+        bareMuxCheck,
+        domainScore,
+        websocketUpgrade,
+        gameContent,
+        anomalyScore,
+        proxyLikely,
+        category: categoryResult.category,
+        categoryConfidence: categoryResult.confidence,
+        categoryReasons: categoryResult.reasons
       }
-    }
-    
-    const uniqueFingerprints = new Set(tlsFingerprints).size
-    const uniqueResponseHashes = new Set(responseHashes).size
-    const avgHeaderEntropy = headerEntropies.reduce((sum, val) => sum + val, 0) / headerEntropies.length || 0
-    
-    const latencyStats: LatencyStats = {
-      min: Math.min(...latencies),
-      max: Math.max(...latencies),
-      avg: latencies.reduce((sum, val) => sum + val, 0) / latencies.length || 0,
-      variance: this.calculateVariance(latencies)
-    }
-    
-    const handshakeVariance = this.calculateVariance(handshakeTimes)
-    const websocketUpgrade = await this.testWebSocketUpgrade(domain)
-    const isBareMux = await this.checkBareMux(domain)
-    const isWispServer = await this.checkWispServers(domain)
-    const isGameSite = await this.checkGameSiteContent(domain)
-    const domainSuspicionScore = this.analyzeDomainName(domain)
-    
-    let anomalyScore = 0
-    
-    anomalyScore += domainSuspicionScore * 0.7
-    
-    if (uniqueFingerprints > 1) {
-      anomalyScore += uniqueFingerprints * 0.4
-    }
-    
-    if (handshakeVariance > 100) {
-      anomalyScore += Math.min(handshakeVariance / 100, 1) * 0.4
-    }
-    
-    if (latencyStats.variance > 800) {
-      anomalyScore += Math.min(latencyStats.variance / 800, 1) * 0.3
-    }
-    
-    if (uniqueResponseHashes > 2) {
-      anomalyScore += (uniqueResponseHashes - 2) * 0.2
-    }
-    
-    if (!websocketUpgrade) {
-      anomalyScore += 0.2
-    }
-    
-    if (isBareMux) {
-      anomalyScore += 0.6
-    }
-    
-    if (isWispServer) {
-      anomalyScore += 0.8
-    }
-    
-    if (isGameSite) {
-      anomalyScore += 0.7
-    }
-    
-    const proxyLikely = anomalyScore > 0.3
-    
-    return {
-      domain,
-      tlsFingerprints,
-      handshakeTimes,
-      latencyStats,
-      headerEntropy: avgHeaderEntropy,
-      responseHashConsistency: uniqueResponseHashes === 1,
-      websocketUpgrade,
-      anomalyScore,
-      proxyLikely
+    } catch (error) {
+      const categoryResult = await Categorizer.categorizeDomain(domain)
+      
+      return {
+        domain,
+        tlsFingerprint: '',
+        handshakeTime: 0,
+        headerEntropy: 0,
+        headerVariance: 0,
+        wispCheck: false,
+        bareMuxCheck: false,
+        domainScore: 0,
+        websocketUpgrade: false,
+        gameContent: false,
+        anomalyScore: 0,
+        proxyLikely: false,
+        category: categoryResult.category,
+        categoryConfidence: categoryResult.confidence,
+        categoryReasons: categoryResult.reasons,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      }
     }
   }
 }

@@ -1,10 +1,23 @@
-import express from 'express'
+import express, { Request } from 'express'
 import { config } from './config/env'
 import checkerRoutes from './routes/checker'
+
+declare global {
+  namespace Express {
+    interface Request {
+      startTime?: number
+    }
+  }
+}
 
 const app = express()
 
 app.use(express.json())
+
+app.use((req, res, next) => {
+  req.startTime = Date.now()
+  next()
+})
 
 app.use('/v1/solstice', checkerRoutes)
 

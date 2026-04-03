@@ -24,10 +24,13 @@ export const checkProxy = async (req: any, res: Response) => {
     const response = {
       site: cleanDomain,
       status: result.proxyLikely ? "blocked" : "unblocked",
-      response: `${result.latencyStats.avg.toFixed(2)}ms`
+      category: result.category,
+      categoryConfidence: Math.round(result.categoryConfidence * 100),
+      categoryReasons: result.categoryReasons,
+      response: `${Date.now() - req.startTime}ms`
     }
 
-    console.log(`Check logged: ${cleanDomain} - ${response.status}`)
+    console.log(`Check logged: ${cleanDomain} - ${response.status} (${response.category})`)
     
     res.json(response)
   } catch (error) {

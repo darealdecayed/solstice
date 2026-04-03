@@ -7,12 +7,19 @@ export interface LatencyStats {
 
 export interface ProxyDetectionResult {
   domain: string
-  tlsFingerprints: string[]
-  handshakeTimes: number[]
-  latencyStats: LatencyStats
+  tlsFingerprint: string
+  handshakeTime: number
   headerEntropy: number
-  responseHashConsistency: boolean
+  headerVariance: number
+  wispCheck: boolean
+  bareMuxCheck: boolean
+  domainScore: number
   websocketUpgrade: boolean
+  gameContent: boolean
   anomalyScore: number
   proxyLikely: boolean
+  category: string
+  categoryConfidence: number
+  categoryReasons: string[]
+  error?: string
 }

@@ -1,4 +1,4 @@
-import * as http from 'http';
+import http from 'http';
 import { ProxyDetectionResult } from './types';
 export declare class ProxyDetector {
     getTLSFingerprint(domain: string): Promise<string>;
